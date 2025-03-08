@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Kiosk Application</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+    #content-frame {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+    #settings-panel {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: white;
+      padding: 20px;
+      border-radius: 5px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+      z-index: 1000;
+      display: none;
+      min-width: 300px;
+    }
+    .settings-group {
+      margin-bottom: 20px;
+    }
+    .settings-group h3 {
+      margin-top: 0;
+      margin-bottom: 10px;
+    }
+    #icon-preview {
+      max-width: 64px;
+      max-height: 64px;
+      margin-top: 10px;
+      display: none;
+    }
+    #url-input {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 10px;
+      box-sizing: border-box;
+    }
+    #save-button {
+      padding: 10px 20px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    #save-button:hover {
+      background-color: #45a049;
+    }
+    #placeholder {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+    }
+    #placeholder h1 {
+      margin-bottom: 20px;
+    }
+    #placeholder p {
+      margin-bottom: 10px;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <div id="placeholder">
+
+    <h1>Kiosk Application</h1>
+    <p>Press Ctrl+A (or Cmd+A on Mac) to open settings and set a URL.</p>
+    <p>Press Ctrl+Shift+A (or Cmd+Shift+A on Mac) to open settings and set a URL.</p>
+  </div>
+  
+  <iframe id="content-frame" style="display: none;"></iframe>
+  
+  <div id="settings-panel">
+    <div class="settings-group">
+        <div class="settings-group" style="display: flex; justify-content: space-between; margin-top: 20px;">
+            <button id="minimize-button" style="padding: 10px 15px; border: none; background-color: #929292; color: white; border-radius: 4px; cursor: pointer;">X</button>
+        </div>
+      <h2>Kiosk Settings</h2>
+      <h3>Display URL</h3>
+      <input type="text" id="url-input" placeholder="https://example.com">
+    </div>
+    <div class="settings-group">
+      <h3>Application Icon</h3>
+      <button id="icon-button">Choose Icon</button>
+      <img id="icon-preview" alt="Icon preview">
+    </div>
+    <div class="settings-group">
+      <h3>Windows Settings</h3>
+      <button id="autostart-button">Add to Windows Startup</button>
+      <p id="autostart-status" style="font-size: 12px; color: #666; margin-top: 5px;"></p>
+    </div>
+
+    <div class="settings-group" style="display: flex; justify-content: space-between; margin-top: 10px;">
+        <button id="save-button">Save and Apply</button>
+    </div>
+
+    <div class="settings-group" style="display: flex; justify-content: space-between; margin-top: 20px;">
+        <button id="minimize-app-button" style="padding: 10px 15px; background-color: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer;">Minimize App</button>
+        <button id="close-button" style="padding: 10px 15px; background-color: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer;">Close App</button>
+      </div>
+
+  </div>
+
+  <script>
+    // Wait for the DOM to be fully loaded
+    document.addEventListener('DOMContentLoaded', () => {
+      const contentFrame = document.getElementById('content-frame');
+      const settingsPanel = document.getElementById('settings-panel');
+      const urlInput = document.getElementById('url-input');
+      const saveButton = document.getElementById('save-button');
+      const placeholder = document.getElementById('placeholder');
+      const iconButton = document.getElementById('icon-button');
+      const iconPreview = document.getElementById('icon-preview');
+      
+      // Request the stored URL and icon when the app starts
+      window.api.getUrl();
+      window.api.getJsonUrl();
+      window.api.getIcon();
+      
+      // Handle icon upload button click
+      iconButton.addEventListener('click', () => {
+        window.api.uploadIcon();
+      });
+      
+      // Listen for icon value updates
+      window.api.onIconValue((iconPath) => {
+        if (iconPath) {
+          iconPreview.src = iconPath;
+          iconPreview.style.display = 'block';
+        } else {
+          iconPreview.style.display = 'none';
+        }
+      });
+      
+      // Listen for the stored URL value
+      window.api.onUrlValue((url) => {
+        if (url && url.trim() !== '') {
+          urlInput.value = url;
+          try {
+            // Try to parse as JSON
+            const jsonData = JSON.parse(url);
+            // If JSON contains a url property, load that URL
+            if (jsonData.url) {
+              contentFrame.src = jsonData.url;
+              contentFrame.style.display = 'block';
+              placeholder.style.display = 'none';
+            } else {
+              // Show message for JSON without URL
+              placeholder.innerHTML = '<h1>JSON Data Detected</h1><p>Please press Ctrl+Shift+S (or Cmd+Shift+S on Mac) to set a valid URL.</p>';
+              contentFrame.style.display = 'none';
+              placeholder.style.display = 'block';
+            }
+          } catch (e) {
+            // Not JSON, treat as regular URL
+            contentFrame.src = url;
+            contentFrame.style.display = 'block';
+            placeholder.style.display = 'none';
+          }
+        } else {
+          // Show message for blank URL
+          placeholder.innerHTML = '<h1>No URL Set</h1><p>Please press Ctrl+Shift+S (or Cmd+Shift+S on Mac) to set a URL.</p>';
+          contentFrame.style.display = 'none';
+          placeholder.style.display = 'block';
+        }
+      });
+      
+      // Listen for JSON URL value
+      window.api.onJsonUrlValue((jsonData) => {
+        if (jsonData) {
+          // If we have JSON data with a url property
+          if (jsonData.url) {
+            // Display only the URL in the input field, not the JSON string
+            urlInput.value = jsonData.url;
+            contentFrame.src = jsonData.url;
+            contentFrame.style.display = 'block';
+            placeholder.style.display = 'none';
+          } else {
+            // Show message for JSON without URL
+            urlInput.value = JSON.stringify(jsonData);
+            placeholder.innerHTML = '<h1>JSON Data Detected</h1><p>Please press Ctrl+Shift+S (or Cmd+Shift+S on Mac) to set a valid URL.</p>';
+            contentFrame.style.display = 'none';
+            placeholder.style.display = 'block';
+          }
+        }
+      });
+      
+      
+      // Listen for the toggle settings event (Ctrl+A)
+      window.api.onToggleSettings(() => {
+        settingsPanel.style.display = settingsPanel.style.display === 'none' ? 'block' : 'none';
+      });
+      
+      // Get reference to the autostart button and status element
+      const autostartButton = document.getElementById('autostart-button');
+      const autostartStatus = document.getElementById('autostart-status');
+      
+      // Handle autostart button click
+      autostartButton.addEventListener('click', () => {
+        window.api.setAutostart();
+        autostartButton.disabled = true;
+        autostartStatus.textContent = 'Processing...';
+      });
+      
+      // Listen for autostart status updates
+      window.api.onAutostartStatus((status) => {
+        autostartButton.disabled = false;
+        if (status.success) {
+          autostartStatus.textContent = 'Successfully added to Windows startup!';
+          autostartStatus.style.color = '#4CAF50';
+        } else {
+          autostartStatus.textContent = `Error: ${status.error}`;
+          autostartStatus.style.color = '#f44336';
+        }
+      });
+      
+      // Get references to the minimize and close buttons
+      const minimizeButton = document.getElementById('minimize-button');
+      const minimizeAppButton = document.getElementById('minimize-app-button');
+      const closeButton = document.getElementById('close-button');
+      
+      // Handle minimize button click
+      minimizeButton.addEventListener('click', () => {
+        settingsPanel.style.display = 'none';
+      });
+      minimizeAppButton.addEventListener('click', () => {
+        window.api.minimizeApp();
+      });
+      // Handle close button click
+      closeButton.addEventListener('click', () => {
+        window.api.closeApp();
+      });
+      
+      // Save button click handler
+      saveButton.addEventListener('click', () => {
+        const url = urlInput.value.trim();
+        if (url !== '') {
+          window.api.updateUrl(url);
+          settingsPanel.style.display = 'none';
+          contentFrame.style.display = 'block';
+          placeholder.style.display = 'none';
+        }
+      });
+    });
+  </script>
+</body>
+</html>
